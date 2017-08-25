@@ -25,36 +25,36 @@ const UserSchema = new mongoose.Schema({
   }
 });
 
-UserSchema.pre('save', ((next) => {
-  const user = this;
+// UserSchema.pre('save', ((next) => {
+//   const user = this;
   // only hash the password if it has been modified (or is new)
-  if (!user.isModified('password')) {
+//   if (!user.isModified('password')) {
     // return;
-    next();
-  }
-  bcrypt.genSalt(SALT_WORK_FACTOR, ((err, salt) => {
-    if (err) {
+//     next();
+//   }
+//   bcrypt.genSalt(SALT_WORK_FACTOR, ((err, salt) => {
+//     if (err) {
       // return;
-      next(err);
-    }
-    bcrypt.hash(user.password, salt, ((error, hash) => {
-      if (error) {
+//       next(err);
+//     }
+//     bcrypt.hash(user.password, salt, ((error, hash) => {
+//       if (error) {
         // return;
-        next(error);
-      }
-      user.password = hash;
-      next();
-    }));
-  }));
-}));
+//         next(error);
+//       }
+//       user.password = hash;
+//       next();
+//     }));
+//   }));
+// }));
 
-UserSchema.methods.comparePassword = ((candidatePassword, cb) => {
-  bcrypt.compare(candidatePassword, this.password, ((err, isMatch) => {
-    if (err) {
-      return cb(err);
-    }
-    cb(null, isMatch);
-  }));
-});
+// UserSchema.methods.comparePassword = ((candidatePassword, cb) => {
+//   bcrypt.compare(candidatePassword, this.password, ((err, isMatch) => {
+//     if (err) {
+//       return cb(err);
+//     }
+//     cb(null, isMatch);
+//   }));
+// });
 
 module.exports = mongoose.model('User', UserSchema);

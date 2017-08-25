@@ -3,6 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const User = require('./user');
 const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
 
 const STATUS_USER_ERROR = 422;
 const STATUS_SERVER_ERROR = 500;
@@ -34,26 +35,46 @@ const sendUserError = (err, res) => {
 server.post('/users', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
-    // res.status(STATUS_USER_ERROR);
-    // res.json({ error: 'Please provide a username and password' });
     sendUserError('Please provide a username and password', res);
     return;
   }
-  const user = new User({ username, password });
-  user.save((err) => {
+  bcrypt.hash(password, BCRYPT_COST, (err, passwordHash) => {
     if (err) {
-      res.status(STATUS_SERVER_ERROR);
-      res.json(err);
+      sendUserError(err, res);
     } else {
-      res.json(user);
+      const newUser = new User({ username, passwordHash });
+      newUser.save((error, user) => {
+        if (error) {
+          // console.log(err);
+          res.status(STATUS_SERVER_ERROR);
+          res.json(error);
+          // sendUserError(error, res);
+        } else {
+          res.json(user);
+        }
+      });
     }
   });
 });
 
+// POST /log-in
+server.post('/log-in', (req, res) => {
+// expect username and password
+  const { username, password } = req.body;
+  if (!username || !password) {
+    sendUserError('Please provide a username and password', res);
+    return;
+  }
+// check credentials and log in user
+  
+// send { success: true }
+// Use session to store id of logged in user
+});
+
 // TODO: add local middleware to this route to ensure the user is logged in
-// server.get('/me', (req, res) => {
+server.get('/me', (req, res) => {
   // Do NOT modify this route handler in any way.
-//   res.json(req.user);
-// });
+  res.json(req.user);
+});
 
 module.exports = { server };
