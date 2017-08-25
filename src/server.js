@@ -66,7 +66,19 @@ server.post('/log-in', (req, res) => {
     return;
   }
 // check credentials and log in user
-  
+  User.findOne({ username: username })
+    .exec((err, user) => {
+      if (!user) {
+        sendUserError('Username not found, please retry', res);
+      }
+      bcrypt.compare(password, user.passwordHash, ((err, result) => {
+        if (result === true) {
+	  res.json({ success: true });
+	} else if (result === false) {
+	  sendUserError('Password does not match, please retry', res);
+	}
+      }));
+    });
 // send { success: true }
 // Use session to store id of logged in user
 });
