@@ -18,6 +18,24 @@ server.use(session({
   saveUninitialized: false
 }));
 
+const isLoggedIn = (req, res, next) => {
+  const username = req.session;
+  if (username === null) {
+    console.log('failing here');
+    sendUserError('Please log in', res);
+  } else {
+  User.findOne({ username }), (err, user) => {
+    if (err) {
+      sendUserError('stuff', res);
+    } else if (!user) {
+      sendUserError('Please log in', res);
+    } else {
+      req.user = user;
+      return next();
+    }
+  }
+}
+
 /* Sends the given err, a string or an object, to the client. Sets the status
  * code appropriately. */
 const sendUserError = (err, res) => {
@@ -32,7 +50,7 @@ const sendUserError = (err, res) => {
 // TODO: implement routes
 
 // POST /users
-server.post('/users', (req, res) => {
+   server.post('/users', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     sendUserError('Please provide a username and password', res);
@@ -64,29 +82,52 @@ server.post('/log-in', (req, res) => {
   if (!username || !password) {
     sendUserError('Please provide a username and password', res);
     return;
-  }
+  };
 // check credentials and log in user
-  User.findOne({ username: username })
-    .exec((err, user) => {
+  User.findOne({ username })
+    .exec()
+    .then((user) => {
       if (!user) {
         sendUserError('Username not found, please retry', res);
+      } else {
+          bcrypt.compare(password, user.passwordHash, (error, isValid) => {
+          if (error) {
+            res.status(STATUS_SERVER_ERROR);
+            res.json(error);
+            return;
+          }
+          if (isValid) {
+            req.session.username = user.username;
+            res.json({ success: true });
+          } else if (!isValid) {
+            sendUserError('Username and password do not match, please retry', res);
+          }
+        });
       }
-      bcrypt.compare(password, user.passwordHash, ((err, result) => {
-        if (result === true) {
-	  res.json({ success: true });
-	} else if (result === false) {
-	  sendUserError('Password does not match, please retry', res);
-	}
-      }));
-    });
+    })
 // send { success: true }
 // Use session to store id of logged in user
 });
 
 // TODO: add local middleware to this route to ensure the user is logged in
-server.get('/me', (req, res) => {
+server.get('/me', isLoggedIn, (req, res) => {
   // Do NOT modify this route handler in any way.
+//   const userID = req.session.userID;
+//   if (err) {
+//     res.status(STATUS_SERVER_ERROR);
+//     res.send(err);
+//   }
+//   User.findOne({ _id: { $eq: userID } })
+//     .exec((error, user) => {
+//       if (error) {
+//         res.status(STATUS_SERVER_ERROR);
+//         res.send(error);
+//       } else if (!user) {
+// 	console.log('no user');
+//         sendUserError('Please log in again', res);
+//       }
+//     });
+//   console.log(user);
   res.json(req.user);
 });
-
 module.exports = { server };

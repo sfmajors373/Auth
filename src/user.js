@@ -9,7 +9,7 @@ const SALT_WORK_FACTOR = 11;
 mongoose.models = {};
 mongoose.modelSchemas = {};
 
-mongoose.Promise = Promise;
+mongoose.Promise = Promise;// mongoose.Promise is deprecated so we reassign it to regular Javascript promises
 mongoose.connect('mongodb://localhost/users', { useMongoClient: true });
 
 const UserSchema = new mongoose.Schema({
@@ -48,13 +48,13 @@ const UserSchema = new mongoose.Schema({
 //   }));
 // }));
 
-UserSchema.methods.comparePassword = ((candidatePassword, cb) => {
-  bcrypt.compare(candidatePassword, this.password, ((err, isMatch) => {
-    if (err) {
-      return cb(err);
-    }
-    cb(null, isMatch);
-  }));
-});
+// UserSchema.methods.comparePassword = ((candidatePassword, cb) => {
+//   bcrypt.compare(candidatePassword, this.password, ((err, isMatch) => {
+//     if (err) {
+//       return cb(err);
+//     }
+//     cb(null, isMatch);
+//   }));
+// });
 
 module.exports = mongoose.model('User', UserSchema);
