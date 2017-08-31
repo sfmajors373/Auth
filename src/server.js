@@ -1,45 +1,22 @@
-const bodyParser = require('body-parser');
 const express = require('express');
-const session = require('express-session');
-const User = require('./user');
-const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
 const bcrypt = require('bcrypt');
+const session = require('express-session');
 
-const STATUS_USER_ERROR = 422;
-const STATUS_SERVER_ERROR = 500;
-const BCRYPT_COST = 11;
+const User = require('./user');
 
-const server = express();
-// to enable parsing of json bodies for post requests
-server.use(bodyParser.json());
-server.use(session({
+const app = express();
+
+app.use(bodyParser.json());
+
+app.use(session({
   secret: 'e5SPiqsEtjexkTj3Xqovsjzq8ovjfgVDFMfUzSmJO21dtXs4re',
   resave: true,
   saveUninitialized: false
 }));
 
-const isLoggedIn = (req, res, next) => {
-  const username = req.session;
-  if (username === null) {
-    console.log('failing here');
-    sendUserError('Please log in', res);
-  } else {
-  User.findOne({ username }), (err, user) => {
-    if (err) {
-      sendUserError('stuff', res);
-    } else if (!user) {
-      sendUserError('Please log in', res);
-    } else {
-      req.user = user;
-      return next();
-    }
-  }
-}
-
-/* Sends the given err, a string or an object, to the client. Sets the status
- * code appropriately. */
 const sendUserError = (err, res) => {
-  res.status(STATUS_USER_ERROR);
+  res.status('422');
   if (err && err.message) {
     res.json({ message: err.message, stack: err.stack });
   } else {
@@ -47,87 +24,124 @@ const sendUserError = (err, res) => {
   }
 };
 
-// TODO: implement routes
-
-// POST /users
-   server.post('/users', (req, res) => {
+app.post('/users', (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) {
-    sendUserError('Please provide a username and password', res);
+  if (!password) {
+    sendUserError('Must provide password', res);
     return;
   }
-  bcrypt.hash(password, BCRYPT_COST, (err, passwordHash) => {
+
+  bcrypt.hash(password, 11, (err, hash) => {
     if (err) {
-      sendUserError(err, res);
-    } else {
-      const newUser = new User({ username, passwordHash });
-      newUser.save((error, user) => {
-        if (error) {
-          // console.log(err);
-          res.status(STATUS_SERVER_ERROR);
-          res.json(error);
-          // sendUserError(error, res);
-        } else {
-          res.json(user);
-        }
-      });
+      sendUserError('couldn\'t hash password', res);
+      return;
     }
+
+    const user = new User({ username, password: hash });
+
+    user.save((err, user) => {
+      if (err) {
+        sendUserError(err, res);
+        return;
+      }
+      res.json(user);
+    });
   });
 });
 
-// POST /log-in
-server.post('/log-in', (req, res) => {
-// expect username and password
+app.post('/login', (req, res) => {
   const { username, password } = req.body;
-  if (!username || !password) {
-    sendUserError('Please provide a username and password', res);
+  if (!username) {
+    sendUserError('Must provide username', res);
     return;
-  };
-// check credentials and log in user
-  User.findOne({ username })
-    .exec()
-    .then((user) => {
-      if (!user) {
-        sendUserError('Username not found, please retry', res);
-      } else {
-          bcrypt.compare(password, user.passwordHash, (error, isValid) => {
-          if (error) {
-            res.status(STATUS_SERVER_ERROR);
-            res.json(error);
-            return;
-          }
-          if (isValid) {
-            req.session.username = user.username;
-            res.json({ success: true });
-          } else if (!isValid) {
-            sendUserError('Username and password do not match, please retry', res);
-          }
-        });
+  }
+  if (!password) {
+    sendUserError('Must provide password', res);
+    return;
+  }
+
+  User.findOne({ username }, (err, user) => {
+    if (err) {
+      sendUserError(err, res);
+      return;
+    }
+    if (!user) {
+      sendUserError('Bad credentials', res);
+      return;
+    }
+
+    bcrypt.compare(password, user.password, (compareErr, valid) => {
+      if (compareErr) {
+        sendUserError(compareErr, res);
+        return;
       }
-    })
-// send { success: true }
-// Use session to store id of logged in user
+      if (!valid) {
+        sendUserError('Bad credentials', res);
+        return;
+      }
+
+      req.session.username = user.username;
+      res.json({ success: true });
+    });
+  });
 });
 
-// TODO: add local middleware to this route to ensure the user is logged in
-server.get('/me', isLoggedIn, (req, res) => {
-  // Do NOT modify this route handler in any way.
-//   const userID = req.session.userID;
-//   if (err) {
-//     res.status(STATUS_SERVER_ERROR);
-//     res.send(err);
-//   }
-//   User.findOne({ _id: { $eq: userID } })
-//     .exec((error, user) => {
-//       if (error) {
-//         res.status(STATUS_SERVER_ERROR);
-//         res.send(error);
-//       } else if (!user) {
-// 	console.log('no user');
-//         sendUserError('Please log in again', res);
-//       }
-//     });
-//   console.log(user);
+app.post('/log-out', (req, res) => {
+  if (!req.session.username) {
+      sendUserError('Must be logged in', res);
+      return;
+  }
+
+  req.session.username = null;
+  res.json({ success: true });
+});
+
+const ensureLoggedIn = (req, res, next) => {
+  const { username } = req.session;
+  if (!username) {
+    sendUserError('Must be logged in', res);
+    return;
+  }
+
+  User.findOne({ username }, (err, user) => {
+    if (err) {
+      sendUserError(err, res);
+    } else if (!user) {
+      sendUserError('Must be logged in', res);
+    } else {
+      req.user = user;
+      next();
+    }
+  });
+};
+
+app.get('/me', ensureLoggedIn, (req, res) => {
   res.json(req.user);
 });
-module.exports = { server };
+
+app.get('/restricted/users', (req, res) => {
+  User.find({})
+      .exec()
+      .then((users) => {
+        res.json(users);
+      })
+      .catch((err) => {
+        sendUserError(err, res);
+      });
+});
+
+const checkRestricted = (req, res, next) => {
+  const path = req.path;
+  if (/restricted/.test(path)) {
+    if (!req.session.username) {
+      sendUserError('Must be logged in to access a restricted path', res);
+    }
+  }
+  next();
+};
+
+app.use(checkRestricted);
+
+app.listen(8080, () => {
+  console.log('Server listening on port 8080');
+});
